@@ -2,6 +2,7 @@ const express = require("express");
 const axios = require("axios");
 const fs = require("fs");
 const path = require("path");
+const FormData = require("form-data");
 const app = express();
 
 app.use(express.json());
@@ -40,7 +41,7 @@ app.post("/", async (req, res) => {
 
         // کاربر اسم جدید را فرستاد
         if (waitingForRename[chatId]) {
-            const newName = msg.text;
+            const newName = msg.text.trim();
             const { fileUrl } = waitingForRename[chatId];
 
             const tempPath = path.join(__dirname, newName);
