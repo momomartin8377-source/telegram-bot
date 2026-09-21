@@ -5,7 +5,7 @@ const app = express();
 app.use(express.json());
 
 const TOKEN = process.env.TOKEN;
-const URL = https://api.telegram.org/bot${1027811367:AAGykKFbgiVLrD9tA3e8rKSknx5V_GAgmCo}/sendMessage;
+const URL = `https://api.telegram.org/bot${TOKEN}/sendMessage`;
 
 app.post("/", async (req, res) => {
     const chatId = req.body.message.chat.id;
