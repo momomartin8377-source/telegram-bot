@@ -5,50 +5,26 @@ const app = express();
 app.use(express.json());
 
 const TOKEN = process.env.TOKEN;
-const URL = `https://api.telegram.org/bot${TOKEN}/sendMessage`;
+const API = `https://api.telegram.org/bot${TOKEN}`;
+const FILE_API = `https://api.telegram.org/file/bot${TOKEN}`;
 
-// جواب‌های هوشمند با شخصیت مشتی
-const smartReplies = {
-    greetings: [
-        "سلام مشتی، الان نیستم ولی پیام‌تو دیدم ❤️",
-        "سلام رفیق، فعلاً نیستم، بعداً میام 🤝",
-        "سلام داش، الان درگیرم، بعداً جواب میدم 😎"
-    ],
-    badwords: [
-        "مشتی آروم باش، فحش نده 😅",
-        "داش چرا فحش؟ آدم باش دیگه 😎",
-        "رفیق فحش نزن، من رباتم ولی ناراحت میشم 😂"
-    ],
-    questions: [
-        "الان نیستم، بعداً جواب میدم مشتی 🤝",
-        "داش فعلاً نیستم، ولی پیام‌تو دیدم 👌",
-        "رفیق الان در دسترس نیستم، بعداً میام 😎"
-    ],
-    emojis: [
-        "ایموجی باحال بود مشتی 😂",
-        "داش ایموجی فرستادی؟ خوشم اومد 😎",
-        "ایموجی رسید، فعلاً نیستم ولی دیدم 😁"
-    ],
-    longText: [
-        "داش چه پیام طولانی‌ای دادی 😅 الان نیستم ولی کامل می‌خونمش بعداً",
-        "رفیق پیام بلند بود، فعلاً نیستم ولی رسید 👌",
-        "مشتی طولانی نوشتی، بعداً کامل جواب میدم ❤️"
-    ],
-    shortText: [
-        "باشه مشتی، فعلاً نیستم ولی رسید 👌",
-        "داش کوتاه نوشتی، دیدم پیام‌تو 😎",
-        "رفیق فعلاً نیستم، ولی پیام کوتاهت رسید ❤️"
-    ],
-    default: [
-        "مشتی الان نیستم، بیاد جوابتو میده ❤️",
-        "داش فعلاً نیستم، پیام‌تو دیدم 👌",
-        "رفیق الان درگیرم، بعداً میام 😎"
-    ]
-};
+let waitingForRename = {}; // ذخیره چت‌هایی که منتظر اسم جدید هستند
 
-// تابع انتخاب جواب تصادفی
-function pick(arr) {
-    return arr[Math.floor(Math.random() * arr.length)];
+// تابع ارسال پیام
+async function sendMessage(chatId, text) {
+    await axios.post(`${API}/sendMessage`, {
+        chat_id: chatId,
+        text
+    });
+}
+
+// تابع ارسال فایل
+async function sendDocument(chatId, fileUrl, newName) {
+    await axios.post(`${API}/sendDocument`, {
+        chat_id: chatId,
+        document: fileUrl,
+        caption: `فایل با نام جدید آماده شد مشتی: ${newName}`
+    });
 }
 
 app.post("/", async (req, res) => {
@@ -57,40 +33,49 @@ app.post("/", async (req, res) => {
         if (!msg || !msg.chat || !msg.chat.id) return res.sendStatus(200);
 
         const chatId = msg.chat.id;
+
+        // اگر کاربر فایل فرستاده
+        if (msg.document) {
+            const fileId = msg.document.file_id;
+
+            // گرفتن لینک فایل
+            const fileInfo = await axios.get(`${API}/getFile?file_id=${fileId}`);
+            const filePath = fileInfo.data.result.file_path;
+            const fileUrl = `${FILE_API}/${filePath}`;
+
+            // ذخیره فایل برای این چت
+            waitingForRename[chatId] = {
+                fileUrl,
+                originalName: msg.document.file_name
+            };
+
+            await sendMessage(chatId, "مشتی اسم جدید فایل رو بفرست 😎");
+            return res.sendStatus(200);
+        }
+
+        // اگر کاربر اسم جدید را فرستاد
+        if (waitingForRename[chatId]) {
+            const newName = msg.text;
+
+            const { fileUrl } = waitingForRename[chatId];
+
+            // ارسال فایل با نام جدید
+            await sendDocument(chatId, fileUrl, newName);
+
+            delete waitingForRename[chatId]; // پاک کردن حالت انتظار
+
+            return res.sendStatus(200);
+        }
+
+        // اگر پیام معمولی بود → جواب هوشمند بده
         const text = msg.text?.toLowerCase() || "";
-        let reply = pick(smartReplies.default);
+        let reply = "مشتی الان نیستم، بیاد جوابتو میده ❤️";
 
-        // سلام
-        if (text.includes("سلام") || text.includes("hi") || text.includes("hello")) {
-            reply = pick(smartReplies.greetings);
-        }
+        if (text.includes("سلام")) reply = "سلام مشتی، فعلاً نیستم ولی پیام‌تو دیدم 😎";
+        if (text.includes("?")) reply = "داش فعلاً نیستم، بعداً جواب میدم 🤝";
+        if (text.length > 40) reply = "پیام طولانی بود مشتی، بعداً کامل جواب میدم 😅";
 
-        // فحش
-        if (text.includes("کس") || text.includes("کیر") || text.includes("جنده") || text.includes("fuck")) {
-            reply = pick(smartReplies.badwords);
-        }
-
-        // سؤال
-        if (text.includes("?") || text.includes("چرا") || text.includes("کجایی") || text.includes("هستی")) {
-            reply = pick(smartReplies.questions);
-        }
-
-        // ایموجی
-        if (/[😀😁😂🤣😍😎😅😢😭😡❤️💔🔥✨💀]/.test(text)) {
-            reply = pick(smartReplies.emojis);
-        }
-
-        // پیام طولانی
-        if (text.length > 40) {
-            reply = pick(smartReplies.longText);
-        }
-
-        // پیام کوتاه
-        if (text.length > 0 && text.length < 10) {
-            reply = pick(smartReplies.shortText);
-        }
-
-        await axios.post(URL, { chat_id: chatId, text: reply });
+        await sendMessage(chatId, reply);
 
         res.sendStatus(200);
     } catch (err) {
