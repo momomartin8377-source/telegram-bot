@@ -24,33 +24,34 @@ app.post("/", async (req, res) => {
 
         const chatId = msg.chat.id;
 
-        // کاربر فایل فرستاده
-        if (msg.document) {
+        // فقط PDF
+        if (msg.document && msg.document.mime_type === "application/pdf") {
             const fileId = msg.document.file_id;
 
-            // گرفتن لینک فایل
             const fileInfo = await axios.get(`${API}/getFile?file_id=${fileId}`);
             const filePath = fileInfo.data.result.file_path;
             const fileUrl = `${FILE_API}/${filePath}`;
 
             waitingForRename[chatId] = { fileUrl };
 
-            await sendMessage(chatId, "اسم جدید فایل رو بفرست");
+            await sendMessage(chatId, "اسم جدید PDF رو بفرست");
             return res.sendStatus(200);
         }
 
-        // کاربر اسم جدید را فرستاد
+        // اگر PDF نبود → هیچ کاری نکن
+        if (msg.document) return res.sendStatus(200);
+
+        // اگر منتظر اسم جدید هستیم
         if (waitingForRename[chatId]) {
             const newName = msg.text.trim();
+            const finalName = newName.endsWith(".pdf") ? newName : `${newName}.pdf`;
+
             const { fileUrl } = waitingForRename[chatId];
+            const tempPath = path.join(__dirname, finalName);
 
-            const tempPath = path.join(__dirname, newName);
-
-            // دانلود فایل
             const fileData = await axios.get(fileUrl, { responseType: "arraybuffer" });
             fs.writeFileSync(tempPath, fileData.data);
 
-            // آپلود فایل با نام جدید
             const formData = new FormData();
             formData.append("chat_id", chatId);
             formData.append("document", fs.createReadStream(tempPath));
