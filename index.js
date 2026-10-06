@@ -35,7 +35,7 @@ app.post("/", async (req, res) => {
 
             waitingForRename[chatId] = { fileUrl };
 
-            await sendMessage(chatId, "مشتی اسم جدید فایل رو بفرست 😎");
+            await sendMessage(chatId, "اسم جدید فایل رو بفرست");
             return res.sendStatus(200);
         }
 
@@ -65,8 +65,6 @@ app.post("/", async (req, res) => {
             return res.sendStatus(200);
         }
 
-        // پیام معمولی
-        await sendMessage(chatId, "مشتی الان نیستم، بیاد جوابتو میده ❤️");
         res.sendStatus(200);
 
     } catch (err) {
